@@ -1,15 +1,18 @@
 # ======================================================
-# 🧠 DAY 4: TEACH-THE-TUTOR (OPERATING SYSTEM EDITION)
-# 👨‍💻 Tutorial by Prabhu Krupa Dwibedy
-# 🚀 Features: OS, Processes, Threads, Scheduling & Active Recall
+# 💼 DAY 5: AI SALES DEVELOPMENT REP (SDR)
+# 🧙‍♂️ "Sir Wizard Store" - Auto-Lead Capture Agent
+# 🚀 Features: FAQ Retrieval, Lead Qualification, JSON Database
 # ======================================================
 
 import logging
 import json
 import os
 import asyncio
-from typing import Annotated, Literal, Optional
-from dataclasses import dataclass
+from datetime import datetime
+from typing import Annotated, Literal, Optional, List
+from dataclasses import dataclass, asdict
+
+
 
 from dotenv import load_dotenv
 from pydantic import Field
@@ -33,187 +36,160 @@ logger = logging.getLogger("agent")
 load_dotenv(".env.local")
 
 # ======================================================
-# 📚 KNOWLEDGE BASE (OPERATING SYSTEM DATA)
+# 📂 1. KNOWLEDGE BASE (FAQ)
 # ======================================================
 
-# 🆕 Renamed file so it generates fresh OS data for you
-CONTENT_FILE = "os_content.json" 
+FAQ_FILE = "store_faq.json"
+LEADS_FILE = "leads_db.json"
 
-# 🧬 NEW OPERATING SYSTEM TOPICS
-DEFAULT_CONTENT = [
-  {
-    "id": "os_intro",
-    "title": "Introduction to Operating Systems",
-    "summary": "An Operating System (OS) is system software that manages hardware, software resources, and provides services to applications. Examples: Windows, Linux, macOS.",
-    "sample_question": "What is an operating system and why is it needed?"
-  },
-  {
-    "id": "process",
-    "title": "Processes and Threads",
-    "summary": "A process is a program in execution. A thread is a lightweight sub-unit of a process. OS manages CPU scheduling, context switching, and execution states.",
-    "sample_question": "What is the difference between a process and a thread?"
-  },
-  {
-    "id": "memory",
-    "title": "Memory Management",
-    "summary": "Memory management handles allocation, deallocation, paging, segmentation, and virtual memory. It ensures safe and efficient memory use.",
-    "sample_question": "What is virtual memory and why is it useful?"
-  },
-  {
-    "id": "scheduling",
-    "title": "CPU Scheduling",
-    "summary": "CPU scheduling decides which process runs next. Algorithms include FCFS, SJF, Round Robin, Priority Scheduling.",
-    "sample_question": "Name two CPU scheduling algorithms."
-  },
-  {
-    "id": "deadlock",
-    "title": "Deadlocks",
-    "summary": "A deadlock occurs when processes wait forever due to circular resource dependency. OS uses prevention, avoidance, detection, and recovery.",
-    "sample_question": "What is a deadlock? Name the Coffman conditions."
-  }
+# ⭐ UPDATED FAQ for Sir Wizard Store (DSA, Full-Stack, Cloud)
+DEFAULT_FAQ = [
+    {
+        "question": "What do you sell?",
+        "answer": "Sir Wizard Store offers premium courses in Data Structures & Algorithms (DSA), Full-Stack Web Development, and Cloud Computing."
+    },
+    {
+        "question": "How much does the DSA course cost?",
+        "answer": "The DSA Mastery Bootcamp costs $199 and includes 100+ coding problems, patterns, and mock interviews."
+    },
+    {
+        "question": "How much is the Full-Stack course?",
+        "answer": "The Full-Stack Developer course costs $349 and covers frontend, backend, databases, and deployment."
+    },
+    {
+        "question": "What about Cloud Computing?",
+        "answer": "The Cloud Computing course costs $299 and teaches AWS, GCP, DevOps basics, and real-world deployments."
+    },
+    {
+        "question": "Do you offer free content?",
+        "answer": "Yes! Sir Wizard publishes free content weekly on YouTube. The paid courses offer deep-dives and real-world projects."
+    },
+    {
+        "question": "Do you offer corporate training?",
+        "answer": "Yes. We train teams in DSA, Full-Stack, and Cloud Computing. Pricing depends on team size and requirements."
+    }
 ]
 
-def load_content():
-    """
-    📖 Checks if OS JSON exists. 
-    If NO: Generates it from DEFAULT_CONTENT.
-    If YES: Loads it.
-    """
+def load_knowledge_base():
+    """Generates FAQ file if missing, then loads it."""
     try:
-        path = os.path.join(os.path.dirname(__file__), CONTENT_FILE)
-        
-        # Check if file exists
+        path = os.path.join(os.path.dirname(__file__), FAQ_FILE)
         if not os.path.exists(path):
-            print(f"⚠️ {CONTENT_FILE} not found. Generating OS data...")
             with open(path, "w", encoding='utf-8') as f:
-                json.dump(DEFAULT_CONTENT, f, indent=4)
-            print("✅ Operating System content file created successfully.")
-            
-        # Read the file
+                json.dump(DEFAULT_FAQ, f, indent=4)
         with open(path, "r", encoding='utf-8') as f:
-            data = json.load(f)
-            return data
-            
+            return json.dumps(json.load(f))  # Return as string for the Prompt
     except Exception as e:
-        print(f"⚠️ Error managing content file: {e}")
-        return []
+        print(f"⚠️ Error loading FAQ: {e}")
+        return ""
 
-# Load data immediately on startup
-COURSE_CONTENT = load_content()
+STORE_FAQ_TEXT = load_knowledge_base()
 
 # ======================================================
-# 🧠 STATE MANAGEMENT
+# 💾 2. LEAD DATA STRUCTURE
 # ======================================================
 
 @dataclass
-class TutorState:
-    """🧠 Tracks the current learning context"""
-    current_topic_id: str | None = None
-    current_topic_data: dict | None = None
-    mode: Literal["learn", "quiz", "teach_back"] = "learn"
-    
-    def set_topic(self, topic_id: str):
-        # Find topic in loaded content
-        topic = next((item for item in COURSE_CONTENT if item["id"] == topic_id), None)
-        if topic:
-            self.current_topic_id = topic_id
-            self.current_topic_data = topic
-            return True
-        return False
+class LeadProfile:
+    name: str | None = None
+    company: str | None = None
+    email: str | None = None
+    role: str | None = None
+    use_case: str | None = None
+    team_size: str | None = None
+    timeline: str | None = None
+
+    def is_qualified(self):
+        """Returns True if we have the minimum info (Name + Email + Use Case)"""
+        return all([self.name, self.email, self.use_case])
 
 @dataclass
 class Userdata:
-    tutor_state: TutorState
-    agent_session: Optional[AgentSession] = None 
+    lead_profile: LeadProfile
 
 # ======================================================
-# 🛠️ TUTOR TOOLS
+# 🛠️ 3. SDR TOOLS
 # ======================================================
 
 @function_tool
-async def select_topic(
-    ctx: RunContext[Userdata], 
-    topic_id: Annotated[str, Field(description="The ID of the OS topic to study (e.g., 'os_intro', 'process', 'memory')")]
-) -> str:
-    """📚 Selects a topic to study from the available list."""
-    state = ctx.userdata.tutor_state
-    success = state.set_topic(topic_id.lower())
-    
-    if success:
-        return f"Topic set to {state.current_topic_data['title']}. Ask the user if they want to 'Learn', be 'Quizzed', or 'Teach it back'."
-    else:
-        available = ", ".join([t["id"] for t in COURSE_CONTENT])
-        return f"Topic not found. Available topics are: {available}"
-
-@function_tool
-async def set_learning_mode(
-    ctx: RunContext[Userdata], 
-    mode: Annotated[str, Field(description="The mode to switch to: 'learn', 'quiz', or 'teach_back'")]
-) -> str:
-    """🔄 Switches the interaction mode and updates the agent's voice/persona."""
-    
-    # 1. Update State
-    state = ctx.userdata.tutor_state
-    state.mode = mode.lower()
-    
-    # 2. Switch Voice based on Mode
-    agent_session = ctx.userdata.agent_session 
-    
-    if agent_session:
-        if state.mode == "learn":
-            agent_session.tts.update_options(voice="en-US-matthew", style="Promo")
-            instruction = f"Mode: LEARN. Explain: {state.current_topic_data['summary']}"
-            
-        elif state.mode == "quiz":
-            agent_session.tts.update_options(voice="en-US-alicia", style="Conversational")
-            instruction = f"Mode: QUIZ. Ask this question: {state.current_topic_data['sample_question']}"
-            
-        elif state.mode == "teach_back":
-            agent_session.tts.update_options(voice="en-US-ken", style="Promo")
-            instruction = "Mode: TEACH_BACK. Ask the user to explain the concept to you as if YOU are the beginner."
-        else:
-            return "Invalid mode."
-    else:
-        instruction = "Voice switch failed (Session not found)."
-
-    print(f"🔄 SWITCHING MODE -> {state.mode.upper()}")
-    return f"Switched to {state.mode} mode. {instruction}"
-
-@function_tool
-async def evaluate_teaching(
+async def update_lead_profile(
     ctx: RunContext[Userdata],
-    user_explanation: Annotated[str, Field(description="The explanation given by the user during teach-back")]
+    name: Annotated[Optional[str], Field(description="Customer's name")] = None,
+    company: Annotated[Optional[str], Field(description="Customer's company name")] = None,
+    email: Annotated[Optional[str], Field(description="Customer's email address")] = None,
+    role: Annotated[Optional[str], Field(description="Customer's job title")] = None,
+    use_case: Annotated[Optional[str], Field(description="What they want to build or learn")] = None,
+    team_size: Annotated[Optional[str], Field(description="Number of people in their team")] = None,
+    timeline: Annotated[Optional[str], Field(description="When they want to start (e.g., Now, next month)")] = None,
 ) -> str:
-    """📝 call this when the user has finished explaining a concept in 'teach_back' mode."""
-    print(f"📝 EVALUATING EXPLANATION: {user_explanation}")
-    return "Analyze the user's explanation. Give them a score out of 10 on accuracy and clarity, and correct any mistakes."
+    
+    profile = ctx.userdata.lead_profile
+
+    if name: profile.name = name
+    if company: profile.company = company
+    if email: profile.email = email
+    if role: profile.role = role
+    if use_case: profile.use_case = use_case
+    if team_size: profile.team_size = team_size
+    if timeline: profile.timeline = timeline
+
+    print(f"📝 UPDATING LEAD: {profile}")
+    return "Lead profile updated. Continue the conversation."
+
+@function_tool
+async def submit_lead_and_end(ctx: RunContext[Userdata]) -> str:
+   
+    profile = ctx.userdata.lead_profile
+
+    db_path = os.path.join(os.path.dirname(__file__), LEADS_FILE)
+
+    entry = asdict(profile)
+    entry["timestamp"] = datetime.now().isoformat()
+
+    existing_data = []
+    if os.path.exists(db_path):
+        try:
+            with open(db_path, "r") as f:
+                existing_data = json.load(f)
+        except:
+            pass
+
+    existing_data.append(entry)
+
+    with open(db_path, "w") as f:
+        json.dump(existing_data, f, indent=4)
+
+    print(f"✅ LEAD SAVED TO {LEADS_FILE}")
+    return (
+        f"Lead saved. Summarize the call for the user: "
+        f"'Thanks {profile.name}, I have your info regarding {profile.use_case}. "
+        f"We will email you at {profile.email}. Goodbye!'"
+    )
 
 # ======================================================
-# 🧠 AGENT DEFINITION
+# 🧠 4. AGENT DEFINITION
 # ======================================================
 
-class TutorAgent(Agent):
+class SDRAgent(Agent):
     def __init__(self):
-        # Generate list of topics for the prompt
-        topic_list = ", ".join([f"{t['id']} ({t['title']})" for t in COURSE_CONTENT])
-        
         super().__init__(
             instructions=f"""
-            You are an Operating Systems Tutor designed to help users master concepts like Processes, Memory, Scheduling, and Deadlocks.
+            You are 'Sarah', a friendly and professional Sales Development Rep (SDR) 
+            for 'Sir Wizard Store'.
             
-            📚 **AVAILABLE TOPICS:** {topic_list}
-            
-            🔄 **YOU HAVE 3 MODES:**
-            1. **LEARN Mode (Voice: Matthew):** You explain the concept clearly using the summary data.
-            2. **QUIZ Mode (Voice: Alicia):** You ask the user a specific question to test knowledge.
-            3. **TEACH_BACK Mode (Voice: Ken):** YOU pretend to be a student. Ask the user to explain the concept to you.
-            
-            ⚙️ **BEHAVIOR:**
-            - Start by asking what topic they want to study.
-            - Use the `set_learning_mode` tool immediately when the user asks to learn, take a quiz, or teach.
-            - In 'teach_back' mode, listen to their explanation and then use `evaluate_teaching` to give feedback.
+            📘 **YOUR KNOWLEDGE BASE (FAQ):**
+            {STORE_FAQ_TEXT}
+
+            🎯 **YOUR GOAL:**
+            1. Answer questions about our DSA, Full-Stack, and Cloud Computing courses.
+            2. Qualify the lead (Name, Email, Role, Use Case, Timeline).
+            3. Capture data using update_lead_profile.
+            4. Close the call using submit_lead_and_end.
+
+            🚫 If you don't know something, say:
+            "I'll check with Sir Wizard and email you."
             """,
-            tools=[select_topic, set_learning_mode, evaluate_teaching],
+            tools=[update_lead_profile, submit_lead_and_end],
         )
 
 # ======================================================
@@ -226,33 +202,26 @@ def prewarm(proc: JobProcess):
 async def entrypoint(ctx: JobContext):
     ctx.log_context_fields = {"room": ctx.room.name}
 
-    print("\n" + "💻" * 25)
-    print("🚀 STARTING OPERATING SYSTEM TUTOR SESSION")
-    print(f"📚 Loaded {len(COURSE_CONTENT)} topics from OS Knowledge Base")
-    
-    # 1. Initialize State
-    userdata = Userdata(tutor_state=TutorState())
+    print("\n" + "💼" * 25)
+    print("🚀 STARTING SDR SESSION")
 
-    # 2. Setup Agent
+    userdata = Userdata(lead_profile=LeadProfile())
+
     session = AgentSession(
         stt=deepgram.STT(model="nova-3"),
         llm=google.LLM(model="gemini-2.5-flash"),
         tts=murf.TTS(
-            voice="en-US-matthew", 
-            style="Promo",        
+            voice="en-US-natalie",
+            style="Promo",
             text_pacing=True,
         ),
         turn_detection=MultilingualModel(),
         vad=ctx.proc.userdata["vad"],
         userdata=userdata,
     )
-    
-    # 3. Store session in userdata for tools to access
-    userdata.agent_session = session
-    
-    # 4. Start
+
     await session.start(
-        agent=TutorAgent(),
+        agent=SDRAgent(),
         room=ctx.room,
         room_input_options=RoomInputOptions(
             noise_cancellation=noise_cancellation.BVC()
